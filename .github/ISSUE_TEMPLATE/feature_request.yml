@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest an improvement or discuss a larger contribution.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Small ideas are welcome. For a new desktop or agent integration, please read the portability roadmap before starting implementation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe who it helps and a concrete use case.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+      description: Describe the behavior you would like. Alternatives and rough ideas are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Relevant platform, alternatives considered, or whether you would like to help implement it.

@@ -11,3 +11,4 @@ This project builds the Omarchy Codex progress widget. Keep DOT and ChatGPT inte
 - Keep test state isolated. Do not bypass hook trust or accept elevated commands in runtime tests.
 - Run relevant unit tests for state/preservation changes and the local runtime fixture when event handling changes. Validate QML in the installed shell or an isolated Quickshell preview.
 - Use work/ for scratch files and outputs/ for the source bundle, verification report and preview.
+- Make changes on a topic branch and open a pull request targeting protected `master`. Preserve branch protections; never bypass required checks or push directly to `master`.
