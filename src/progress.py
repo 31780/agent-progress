@@ -56,11 +56,22 @@ def database():
     os.umask(0o077)
     root = state_dir()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    conn = sqlite3.connect(root / "tasks.sqlite3", timeout=0.5)
+    conn = sqlite3.connect(root / "tasks.sqlite3", timeout=0.1)
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, updated REAL, record TEXT)")
-        conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+        # Simultaneous first hooks can race while enabling WAL. SQLite may
+        # return BUSY immediately for that transition despite busy_timeout.
+        deadline = time.monotonic() + 0.4
+        while True:
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, updated REAL, record TEXT)")
+                conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+                break
+            except sqlite3.OperationalError as exc:
+                if (getattr(exc, "sqlite_errorcode", 0) & 255) not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.01)
+        conn.execute("PRAGMA busy_timeout=400")
         with conn:
             yield conn
     finally:
@@ -136,6 +147,7 @@ def reduce_event(old, event, now, owner):
     elif name in ("PreToolUse", "PostToolUse", "PermissionRequest", "Stop") and r["status"] in TERMINAL:
         return old  # In-flight tool output arriving after Stop/Interrupt is stale.
     r.update(updated=now, last_event=name, owner=owner, cwd=clean(event.get("cwd"), 500))
+    r.pop("dismissed_at", None)  # Fresh observed activity returns a dismissed chat.
     pending = dict(r["pending"])
     if name == "SessionStart":
         if event.get("source") == "compact":
@@ -198,6 +210,32 @@ def ingest(event, now=None, owner=None):
     return record
 
 
+def observed_status(record, now):
+    status, detail = record["status"], record["activity"]
+    if status in ACTIVE:
+        owner = record.get("owner")
+        if owner is None or process_identity(owner["pid"]) != owner:
+            return "connection_unknown", "Codex process unavailable; last seen " + LABELS[status].lower()
+        if now - record["updated"] > STALE_SECONDS:
+            return "connection_unknown", "No hook event for 3 minutes; last seen " + LABELS[status].lower()
+    return status, detail
+
+
+def dismiss(session, updated, now=None):
+    """Move an unchanged unknown/ready observation to history, without ending it."""
+    now = time.time() if now is None else now
+    with database() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT record FROM tasks WHERE id=?", (session,)).fetchone()
+        if not row:
+            raise ValueError("No observed session with that id")
+        record = json.loads(row[0])
+        if record["updated"] != updated or observed_status(record, now)[0] not in ("connection_unknown", "idle"):
+            raise ValueError("The job changed; refresh before dismissing")
+        record["dismissed_at"] = now
+        conn.execute("UPDATE tasks SET record=? WHERE id=?", (json.dumps(record), session))
+
+
 def snapshot(now=None):
     now = time.time() if now is None else now
     with database() as conn:
@@ -206,16 +244,8 @@ def snapshot(now=None):
     tasks = []
     for row in rows:
         r = json.loads(row[0])
-        status, detail = r["status"], r["activity"]
+        status, detail = observed_status(r, now)
         age = max(0, now - r["updated"])
-        owner = r.get("owner")
-        if status in ACTIVE:
-            if owner is None or process_identity(owner["pid"]) != owner:
-                status, detail = "connection_unknown", "Codex process unavailable; last seen " + LABELS[status].lower()
-            elif age > STALE_SECONDS:
-                status, detail = "connection_unknown", "No hook event for 3 minutes; last seen " + LABELS[status].lower()
-        if status in TERMINAL and age > 86400:
-            continue
         end = r.get("ended") or (now if status in ACTIVE else r["updated"])
         elapsed = max(0, end - r["started"]) if r.get("started") else 0
         tasks.append({"id": r["id"], "title": r["title"] or
@@ -223,13 +253,18 @@ def snapshot(now=None):
                       "titleKnown": bool(r["title"]), "status": status, "label": LABELS[status],
                       "activity": detail, "elapsed": int(elapsed), "age": int(age),
                       "elapsedExact": r.get("elapsed_exact", False),
-                      "milestone": r.get("milestone"), "updated": r["updated"]})
+                      "milestone": r.get("milestone"), "updated": r["updated"],
+                      "inHistory": status in TERMINAL or r.get("dismissed_at") is not None,
+                      "historyAt": r.get("dismissed_at") or r.get("ended") or r["updated"]})
     rank = {"waiting_approval": 0, "working": 1, "connection_unknown": 2, "interrupted": 3, "response_finished": 4, "idle": 5}
     tasks.sort(key=lambda r: (rank[r["status"]], -r["updated"]))
+    current = [t for t in tasks if not t["inHistory"]]
+    history = sorted((t for t in tasks if t["inHistory"]), key=lambda t: t["historyAt"], reverse=True)
     return {"schemaVersion": 1, "generated": now, "tasks": tasks,
-            "active": sum(t["status"] in ACTIVE for t in tasks),
-            "waiting": sum(t["status"] == "waiting_approval" for t in tasks),
-            "unknown": sum(t["status"] == "connection_unknown" for t in tasks)}
+            "current": current, "history": history,
+            "active": sum(t["status"] in ACTIVE for t in current),
+            "waiting": sum(t["status"] == "waiting_approval" for t in current),
+            "unknown": sum(t["status"] == "connection_unknown" for t in current)}
 
 
 class Rpc:
@@ -328,6 +363,9 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("hook", "snapshot", "titles", "hooks"):
         sub.add_parser(name)
+    dismiss_parser = sub.add_parser("dismiss")
+    dismiss_parser.add_argument("--session", required=True)
+    dismiss_parser.add_argument("--updated", type=float, required=True)
     report_parser = sub.add_parser("report")
     for name in ("session", "turn"):
         report_parser.add_argument("--" + name, required=True)
@@ -350,6 +388,8 @@ def main():
                 print(json.dumps(rpc.call("hooks/list", {"cwds": [os.getcwd()]}), indent=2))
         elif args.command == "report":
             report(args)
+        elif args.command == "dismiss":
+            dismiss(args.session, args.updated)
     except Exception as exc:
         if args.command == "hook":
             # Observation must not block/deny a user action on a storage failure.

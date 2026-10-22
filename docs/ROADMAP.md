@@ -20,7 +20,7 @@ The JSON snapshot provides a useful interface boundary, but version 1 is provisi
 
 - Collect normal-use feedback on approval waits, quiet long-running work and resumed sessions.
 - Improve diagnostics for missing hooks without retaining raw payloads.
-- Define subagent grouping and history controls.
+- Define subagent grouping and refine the Current/History views based on feedback.
 - Maintain tests for state transitions, concurrent writes, uninstall preservation and runtime restarts.
 
 ## Phase 2 — extract a portable core
