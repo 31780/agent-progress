@@ -20,10 +20,11 @@ and running the tunnel client. Reports are not queued indefinitely for an offlin
 computer. A quiet report becomes unknown after three minutes; reconnecting the
 tunnel alone never refreshes a task or marks it complete.
 
-**Verification status:** the bridge passes isolated contract tests and an
-interoperability check using the official Python MCP client SDK. A real cloud
-Dot → tunnel → panel call still needs account connection and live verification.
-Do not mistake local test reports for a live Dot connection.
+**Verification status:** version 0.3.1 passes isolated contract tests and an
+interoperability check using the official Python MCP client SDK. ChatGPT has
+successfully discovered both tools through a private tunnel. A real Dot report
+still needs live verification; tool discovery and local test reports are not
+evidence of Dot activity.
 
 ## 1. Install the bridge
 
@@ -98,6 +99,14 @@ The `file:/private/path` reference or your secret manager may fit better than a
 terminal-only environment variable. A started process is insufficient: verify
 `process_running`, `healthy`, and `ready` before claiming a working connection.
 Leave the client's admin/health UI on its default loopback address.
+
+After ChatGPT discovers the tools, also check `/health/mcp` at the local health
+address. It should show successful initialization and both `begin_report` and
+`update_report`. A healthy tunnel alone does not establish MCP compatibility.
+Version 0.3.1 allows ChatGPT to initialize the same stdio process again during
+discovery or reconnection. Each valid handshake resets only transport readiness
+and requires a fresh `notifications/initialized`; it never creates, refreshes or
+reopens a task report.
 
 ## 3. Add the plugin to ChatGPT
 

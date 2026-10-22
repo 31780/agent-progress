@@ -113,7 +113,7 @@ def main():
                 shutil.copy2(ROOT / "skills" / SKILL_NAME / name, destination)
                 skill_hashes[name] = hashlib.sha256(destination.read_bytes()).hexdigest()
         atomic_json(hooks_path, changed)
-        atomic_json(receipt, {"version": "0.3.0", "source": str(ROOT), "command": command,
+        atomic_json(receipt, {"version": "0.3.1", "source": str(ROOT), "command": command,
                              "mcpBridge": install_bridge,
                              "reportingSkill": skill_hashes,
                              "hooksExisted": previous_receipt.get("hooksExisted", hooks_existed),

@@ -72,6 +72,34 @@ class McpTests(unittest.TestCase):
             self.call("update_report", self.update_args(result, sequence=2, status="ready_for_review"))
         self.assertEqual(p.snapshot(1184)["history"][0]["status"], "ready_for_review")
 
+    def test_tunnel_reinitialization_preserves_reports_and_requires_notification(self):
+        args = self.begin_args()
+        with patch.object(p.time, "time", return_value=1000):
+            first = self.call("begin_report", args)["result"]["structuredContent"]
+        with patch.object(p.time, "time", return_value=1001):
+            self.call("update_report", self.update_args(first, status="ready_for_review"))
+        before = p.snapshot(1002)
+        handshake = {"protocolVersion": "2025-11-25", "capabilities": {},
+                     "clientInfo": {"name": "openai-mcp", "version": "1.0.0"}}
+        # Cloud discovery falls back from server/discover, then initializes
+        # twice on the same child before sending notifications/initialized.
+        self.assertEqual(self.rpc("server/discover", {"_meta": {}})["error"]["code"], -32601)
+        for _ in range(2):
+            self.assertIn("result", self.rpc("initialize", handshake))
+            self.assertIn("error", self.rpc("tools/list"))
+            self.assertIn("error", self.call("begin_report", self.begin_args()))
+        self.server.handle({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        self.assertEqual(len(self.rpc("tools/list")["result"]["tools"]), 2)
+        with patch.object(p.time, "time", return_value=1200):
+            self.assertEqual(self.call("begin_report", args)["result"]["structuredContent"], first)
+        self.assertEqual(p.snapshot(1002), before)
+        self.assertTrue(self.call("update_report", self.update_args(first, sequence=2))["result"]["isError"])
+        # Invalid discovery cannot disturb a ready session or write records.
+        self.assertIn("error", self.rpc("initialize", {**handshake, "clientInfo": {}}))
+        self.assertIn("result", self.rpc("tools/list"))
+        fresh = m.Server()
+        self.assertEqual(self.rpc("server/discover", server=fresh)["error"]["code"], -32601)
+
     def test_retry_receipts_survive_restart_without_refresh_or_revive(self):
         args = self.begin_args()
         with patch.object(p.time, "time", return_value=1000):
