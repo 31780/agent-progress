@@ -1,6 +1,6 @@
 # Project instructions
 
-This project builds Agent Progress, starting with Codex on Omarchy. Codex lifecycle monitoring is established; Dot and ChatGPT Work may use explicitly labeled experimental reports with local computer access. Automatic personal-account cloud monitoring remains unsupported.
+This project builds Agent Progress, starting with Codex on Omarchy. Codex lifecycle monitoring is established; Dot and ChatGPT Work may use explicitly labeled experimental reports with local computer access or the optional private MCP reporting bridge. Automatic personal-account cloud monitoring remains unsupported.
 
 - Follow the Omarchy skill for desktop customization. Never edit `/usr/share/omarchy/`.
 - Keep source here, install into user-owned directories, and preserve unrelated hooks and bar settings.

@@ -13,6 +13,7 @@ Codex metadata API ──> chat titles
 
 Dot / ChatGPT Work ──> explicit local reports ──> SQLite records
                       (experimental skill)
+Cloud Dot / Work ──> private MCP tunnel ──> stdio report bridge ──> same records
 ```
 
 `src/progress.py` currently contains the event reducer, storage, Linux process inspection, metadata client and command interface. `plugin/` renders the snapshot through Omarchy's QML components. `install.py` manages Omarchy settings and user hook registration.
@@ -59,6 +60,8 @@ Each target needs clean-install/update/remove checks, real approval/interruption
 
 Codex's initial lifecycle path is established. Dot and ChatGPT Work now have an experimental local report adapter with source identity, run tokens, ordered updates and explicit evidence labels. See [reporting capabilities and limitations](REPORTING.md). The adapter and skill are fixture-tested; real Dot/Work execution still needs verification. Automatic cloud monitoring remains blocked by the absence of a supported personal-account event feed. Enterprise-managed remote hooks require a separate delivery integration.
 
-Next: verify a real connected-computer reporting task, collect reliability feedback, and evaluate documented event feeds as they become available. New adapters must preserve source/session/turn identity, expose capability gaps, and avoid scraping private internal databases or transcripts.
+The optional [private MCP bridge](CLOUD_REPORTING.md) now supplies a transport from cloud Dot without desktop-control access. Its stdio contract and official SDK interoperability are verified locally; account linking and a real Dot call remain required. This is explicit reporting, not an automatic event feed.
+
+Next: verify a real tunnel-connected reporting task, collect reliability feedback, and evaluate documented event feeds as they become available. New adapters must preserve source/session/turn identity, expose capability gaps, and avoid scraping private internal databases or transcripts.
 
 Across every phase: animation means activity, steps require explicit reports, a finished response is not task completion, and unknown stays visible.

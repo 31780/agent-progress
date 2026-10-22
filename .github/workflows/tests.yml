@@ -48,3 +48,5 @@ jobs:
           python-version: '3.11'
       - name: Report adapter tests (no desktop or Codex runtime)
         run: python -m unittest discover -s tests -p test_reports.py -v
+      - name: Private MCP bridge tests
+        run: python -m unittest discover -s tests -p test_mcp.py -v

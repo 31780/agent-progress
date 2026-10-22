@@ -237,13 +237,18 @@ def report_text(value, field, limit):
     return clean(value, limit)
 
 
-def observe(message, now=None):
+def observe(message, now=None, *, request_id=None):
     """Explicit local reports, separate from observed Codex lifecycle events.
 
     This interface does not discover chats or establish cloud liveness. A run
     token and monotonic sequence prevent old writers reviving newer work.
     """
     now = time.time() if now is None else now
+    if request_id is not None:
+        # Network retries reuse a UUID. Receipts contain only a payload hash and
+        # acknowledgement, and live for the same seven days as activity records.
+        if not isinstance(request_id, str) or str(uuid.UUID(request_id)) != request_id:
+            raise ValueError("request_id must be a canonical UUID")
     if not isinstance(message, dict):
         raise ValueError("Expected a report object")
     action = message.get("action")
@@ -275,6 +280,16 @@ def observe(message, now=None):
                 raise ValueError("milestone requires integer 0 <= done <= total <= 1000 and total > 0")
     with database() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        if request_id is not None:
+            conn.execute("CREATE TABLE IF NOT EXISTS report_receipts "
+                         "(id TEXT PRIMARY KEY, fingerprint TEXT, created REAL, result TEXT)")
+            conn.execute("DELETE FROM report_receipts WHERE created < ?", (now - RETENTION_SECONDS,))
+            fingerprint = hashlib.sha256(json.dumps(message, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            receipt = conn.execute("SELECT fingerprint, result FROM report_receipts WHERE id=?", (request_id,)).fetchone()
+            if receipt:
+                if receipt[0] != fingerprint:
+                    raise ValueError("request_id was already used with a different report")
+                return json.loads(receipt[1])
         if action == "begin":
             record = {"id": sid, "source": source, "observation": "agent_report", "title": title,
                       "run": str(uuid.uuid4()), "sequence": 0, "status": "working",
@@ -298,7 +313,11 @@ def observe(message, now=None):
             record.pop("dismissed_at", None)
         conn.execute("INSERT OR REPLACE INTO tasks VALUES (?, ?, ?)", (sid, now, json.dumps(record)))
         conn.execute("DELETE FROM tasks WHERE updated < ?", (now - RETENTION_SECONDS,))
-    return {"id": sid, "run": record["run"], "sequence": record["sequence"], "status": record["status"]}
+        result = {"id": sid, "run": record["run"], "sequence": record["sequence"], "status": record["status"]}
+        if request_id is not None:
+            conn.execute("INSERT INTO report_receipts VALUES (?, ?, ?, ?)",
+                         (request_id, fingerprint, now, json.dumps(result)))
+    return result
 
 
 def dismiss(session, updated, now=None):

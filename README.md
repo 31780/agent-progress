@@ -20,7 +20,7 @@ Local activity monitoring for Codex chats, with experimental Dot and ChatGPT Wor
 - Animated activity bars when the amount of work is unknown.
 - Explicit agent-reported milestones, such as `3/5 steps`.
 - Local records, concurrent writers, conservative restart handling and reversible installation.
-- Optional Dot/ChatGPT Work reports, labeled separately from observed Codex events. Requires local computer access and an agent using the reporting skill; automatic cloud monitoring is not supported.
+- Optional Dot/ChatGPT Work reports, labeled separately from observed Codex events. Uses a local reporting skill or an optional private MCP tunnel from cloud Dot; automatic cloud monitoring is not supported.
 
 **A finished response does not mean the task is complete.** Step counts describe an agent's declared plan; they do not become an automatic completion estimate.
 
@@ -54,7 +54,9 @@ For title lookup, the helper prefers the Omarchy bundled Codex runtime, then `co
 
 Install the optional local skill with `python3 install.py install --with-reporting-skill`, then ask a Dot or ChatGPT Work task with access to this computer to **use the agent-progress skill to show this task in the panel**. Its cards say **Agent-reported**. Reports become unknown after three quiet minutes; work reported ready for review moves to History.
 
-This is best effort, not automatic observation of all chats. Real Dot/ChatGPT Work execution remains unverified; the reporter-to-panel path is tested in isolation. Ordinary Chat and cloud-only tasks cannot reach the local panel. Read [setup, limitations and the report contract](docs/REPORTING.md).
+For **ChatGPT’s Dot running in the cloud**, install the optional bridge with `python3 install.py install --with-mcp-bridge` and connect a private OpenAI Secure MCP Tunnel. Dot can then call the reporting tools without desktop-control access. The computer must remain online. See [cloud setup and verification](docs/CLOUD_REPORTING.md).
+
+This is best effort, not automatic observation of all chats. Real Dot/ChatGPT Work execution remains unverified; local delivery and MCP interoperability are tested in isolation. Without local tools or a connected reporting plugin, a chat cannot update the panel. Read [the report contract](docs/REPORTING.md).
 
 ## States and limitations
 
@@ -106,7 +108,7 @@ The installer honors XDG directory variables and `CODEX_HOME`. `OMARCHY_PROGRESS
 
 ## Privacy and behavior
 
-The observer stores titles, workspace paths, generic activity, timestamps, process identity, milestones and hashed tool-matching keys. It discards prompts, command bodies, tool output, transcript paths and assistant replies. Raw transcript parsing is not used. Records and backups stay local; this project adds no telemetry or upload endpoint. Titles use Codex's documented `thread/read` metadata interface with `includeTurns: false`.
+The observer stores titles, workspace paths, generic activity, timestamps, process identity, milestones and hashed tool-matching keys. It discards prompts, command bodies, tool output, transcript paths and assistant replies. Raw transcript parsing is not used. Records and backups stay local; the default installation adds no telemetry or upload endpoint. The optional private MCP tunnel carries only explicit reports through OpenAI; it exposes no local-record reading tools. See [its access and privacy boundaries](docs/CLOUD_REPORTING.md). Titles use Codex's documented `thread/read` metadata interface with `includeTurns: false`.
 
 Hooks run synchronously with a one-second timeout and return `{}`. They never approve, deny, block, or continue a Codex action. Storage/input failures fail open. The panel polls every two seconds; titles refresh approximately once per minute and on opening. Records expire after seven days without a hook; reads filter expiry and hook writes perform cleanup. Dismissing an entry does not refresh its expiry. Snapshots contain at most 200 entries across Current and History.
 

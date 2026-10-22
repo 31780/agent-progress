@@ -13,6 +13,25 @@ spec.loader.exec_module(i)
 
 
 class InstallTests(unittest.TestCase):
+    def test_mcp_bridge_is_optional_preserved_on_update_and_removed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            env = {"XDG_CONFIG_HOME": str(root / "config"), "XDG_DATA_HOME": str(root / "share"),
+                   "XDG_STATE_HOME": str(root / "state"), "CODEX_HOME": str(root / "codex")}
+            app = root / "share/omarchy-agent-progress"
+            with patch.dict(os.environ, env), patch.object(i.subprocess, "run"), \
+                 patch.object(i.subprocess, "check_output", return_value=json.dumps([{"id": i.PLUGIN_ID}]).encode()):
+                for flags in ([], ["--with-mcp-bridge"], []):
+                    with patch.object(sys, "argv", ["install.py", "install", *flags]):
+                        i.main()
+                    if not flags and not json.loads((app / "install.json").read_text())["mcpBridge"]:
+                        self.assertFalse((app / "reporting_mcp.py").exists())
+                    else:
+                        self.assertEqual((app / "reporting_mcp.py").read_bytes(), (i.ROOT / "src/reporting_mcp.py").read_bytes())
+                with patch.object(sys, "argv", ["install.py", "remove"]):
+                    i.main()
+                self.assertFalse(app.exists())
+
     def test_optional_skill_updates_and_removes_only_owned_unchanged_files(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
