@@ -5,6 +5,10 @@ agents can run tools on the computer hosting the panel. This is **best-effort
 agent reporting**, not automatic monitoring of every chat. The panel marks each
 card with its source and **Agent-reported**. Codex cards remain **Hook-observed**.
 
+<img src="images/reporting-preview.png" alt="Simulated Dot waiting for input, Codex working, and a stale ChatGPT Work report with Move to history" width="460">
+
+*Simulated cards rendered from the panel's QML content in an expanded preview.*
+
 ## What is supported
 
 | Source | Integration | Limits |
