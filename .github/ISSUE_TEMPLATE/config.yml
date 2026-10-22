@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and early ideas
+    url: https://github.com/31780/agent-progress/discussions
+    about: Ask for help or discuss an idea with the community.
+  - name: Report a security vulnerability privately
+    url: https://github.com/31780/agent-progress/security/advisories/new
+    about: Use a private advisory instead of a public issue for vulnerabilities.

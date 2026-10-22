@@ -74,6 +74,15 @@ python3 install.py remove
 
 Removal retains local records and configuration backups. It removes only this project's hook handlers and widget, leaving unrelated hooks/settings intact. Installed files are moved into the backup directory.
 
+The default branch is `master`. If you cloned the initial `main` branch, switch before updating:
+
+```sh
+git branch -m main master
+git fetch origin
+git branch --set-upstream-to=origin/master master
+git remote set-head origin -a
+```
+
 | Location | Purpose |
 | --- | --- |
 | `~/.local/share/omarchy-agent-progress/` | Installed helper and installation receipt |
@@ -125,3 +134,14 @@ The [architecture and portability roadmap](docs/ROADMAP.md) describes how to sep
 - [Official Codex hooks](https://learn.chatgpt.com/docs/hooks)
 - [Official Codex app-server interface](https://learn.chatgpt.com/docs/app-server)
 - Omarchy's installed plugin contract: `/usr/share/omarchy/shell/README.md` (read only)
+
+## Join in
+
+First-time contributors are welcome. Documentation, reproducible bug reports, accessibility improvements and regression tests are useful contributions; you do not need an Omarchy desktop to improve the docs or run the unit suite on Linux.
+
+- [Contribution guide](CONTRIBUTING.md): fork, create a branch and open a pull request against `master`.
+- [Report a bug or suggest a feature](https://github.com/31780/agent-progress/issues/new/choose).
+- [Discussions](https://github.com/31780/agent-progress/discussions): questions and early ideas.
+- [Community guidelines](CODE_OF_CONDUCT.md) and [private security reporting](SECURITY.md).
+
+`master` requires pull requests, passing tests and resolved review conversations. Force-pushes and deletion are disabled. Contributors retain authorship; contributions use the MIT license, with no separate contributor agreement or commit-signing requirement.
