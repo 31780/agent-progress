@@ -1,6 +1,6 @@
 ---
 name: agent-progress
-description: Report this Dot or ChatGPT Work task's activity to an installed Agent Progress desktop panel when the user asks to track work there. Requires tool access to the computer running the panel. Codex already uses lifecycle hooks.
+description: Report this Dot or ChatGPT Work task's activity to Agent Progress when asked to track work there. Use connected Agent Progress MCP tools, or local reporting with access to the panel computer. Codex already uses lifecycle hooks.
 ---
 
 # Agent Progress reporting
@@ -9,12 +9,20 @@ Use this skill when asked to show this task in Agent Progress. This is an
 experimental, best-effort reporting workflow, not an automatic lifecycle feed.
 Do not use it to monitor other chats or send messages to them.
 
-Run `scripts/report.py` from this skill directory with Python 3, passing a JSON
+If connected **Agent Progress** tools `begin_report` and `update_report` are
+available, use them. They work through a configured private tunnel without
+desktop-control access. Add a fresh `request_id` UUID to each call; omit `action`
+and choose the corresponding tool. Retain that UUID and the exact arguments for
+an immediate retry only. Never retry requests after seven days. Follow the same
+source, state and milestone rules below. Do not create a tunnel, expose a server,
+forward credentials or change account permissions as part of reporting.
+
+Otherwise run `scripts/report.py` from this skill directory with Python 3, passing a JSON
 object on standard input. Use the tools connected to the **computer running the
 panel**. The script fails if the panel is not installed there; never install or
 run a replacement in a cloud container, forward credentials, or change app
-permissions to make reporting work. Ordinary Chat without local tools cannot
-use this integration. Codex tasks use their existing hooks instead.
+permissions to make reporting work. Without connected reporting tools or local
+access, explain that reporting is unavailable. Codex tasks use their existing hooks instead.
 
 Begin with:
 

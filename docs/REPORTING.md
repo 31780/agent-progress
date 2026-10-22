@@ -1,7 +1,7 @@
 # Dot and ChatGPT Work: experimental reports
 
 Agent Progress can display explicit reports from Dot and ChatGPT Work when those
-agents can run tools on the computer hosting the panel. This is **best-effort
+agents have local tools or a connected private [MCP reporting bridge](CLOUD_REPORTING.md). This is **best-effort
 agent reporting**, not automatic monitoring of every chat. The panel marks each
 card with its source and **Agent-reported**. Codex cards remain **Hook-observed**.
 
@@ -17,7 +17,8 @@ card with its source and **Agent-reported**. Codex cards remain **Hook-observed*
 | Local-only Work using the Codex runtime | Existing runtime hooks where supported | Currently labeled Codex; no product identity is guessed from a model name |
 | Dot with connected computer access | Optional reporting skill | Agent must use the skill and the computer hosting the panel |
 | ChatGPT Work with local tools | Optional reporting skill | Same requirement; tool/skill availability depends on the account and environment |
-| Ordinary Chat or cloud-only work | No direct integration | Cannot reach the local panel |
+| Cloud Dot / ChatGPT Work with Agent Progress MCP tools | Optional private tunnel and stdio bridge | Computer must remain online; tools must be available and invoked |
+| Chat without local or connected reporting tools | No integration | Cannot reach the panel |
 
 The local reporter and panel path are tested with isolated fixtures. A real Dot
 or ChatGPT Work task has **not yet been verified end to end**. Do not describe the
@@ -49,8 +50,7 @@ discover local skills and access this computer, then ask:
 
 The agent runs the skill's reporter as it makes progress. Merely installing a
 skill does not guarantee invocation, and it does not attach to existing tasks.
-If the skill is not available, or the agent only has cloud tools, this integration
-cannot update the desktop. Don't copy the reporter into a cloud container and
+If local access is unavailable, use the optional [private cloud reporting bridge](CLOUD_REPORTING.md). Without either path the task cannot update the desktop. Don't copy the reporter into a cloud container and
 expect it to reach your computer.
 
 - **Working:** a recent explicit report of activity.
@@ -96,8 +96,9 @@ must be integer counts with `0 <= done <= total <= 1000` and `total > 0`. Omit
 `milestone` to retain it or use `null` to clear it. Extra fields are rejected.
 Repeated/out-of-order sequences and old run tokens are rejected without changing
 liveness or history. After `ready_for_review`, further updates are rejected;
-use `begin` only for genuinely resumed work. A `begin` is an explicit reset,
-not an idempotent retry. There is no auto-retry or heartbeat process.
+use `begin` only for genuinely resumed work. A local CLI `begin` is an explicit reset,
+not an idempotent retry. The MCP tools add a required request UUID and transactional
+retry receipts; see [retry semantics](CLOUD_REPORTING.md#report-contract-and-retry-behavior). There is no auto-retry or heartbeat process.
 
 The snapshot retains schema version 1 and adds `source`, `sourceLabel` and
 `observation` per task, plus `inputWaiting` at the top level. Existing Codex

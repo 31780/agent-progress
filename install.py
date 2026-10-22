@@ -62,6 +62,8 @@ def main():
     parser.add_argument("action", choices=("install", "remove"))
     parser.add_argument("--with-reporting-skill", action="store_true",
                         help="Install experimental Dot/ChatGPT Work reporting instructions")
+    parser.add_argument("--with-mcp-bridge", action="store_true",
+                        help="Install the private stdio reporting bridge (tunnel connection configured separately)")
     args = parser.parse_args()
     os.umask(0o077)
     home = Path.home()
@@ -74,6 +76,7 @@ def main():
     receipt = data / "install.json"
     previous_receipt = json.loads(receipt.read_text()) if receipt.exists() else {}
     install_skill = args.with_reporting_skill or bool(previous_receipt.get("reportingSkill"))
+    install_bridge = args.with_mcp_bridge or bool(previous_receipt.get("mcpBridge"))
     if args.action == "install" and install_skill and skill.exists() and not previous_receipt.get("reportingSkill"):
         raise RuntimeError("Reporting skill already exists without our receipt; inspect before replacing")
     command = "/usr/bin/python3 " + shlex.quote(str(data / "progress.py")) + " hook"
@@ -96,6 +99,8 @@ def main():
         data.mkdir(parents=True, exist_ok=True)
         plugin.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / "src/progress.py", data / "progress.py")
+        if install_bridge:
+            shutil.copy2(ROOT / "src/reporting_mcp.py", data / "reporting_mcp.py")
         for name in ("ProgressPanel.qml", "manifest.json"):
             shutil.copy2(ROOT / "plugin" / name, plugin / name)
         skill_hashes = {}
@@ -108,7 +113,8 @@ def main():
                 shutil.copy2(ROOT / "skills" / SKILL_NAME / name, destination)
                 skill_hashes[name] = hashlib.sha256(destination.read_bytes()).hexdigest()
         atomic_json(hooks_path, changed)
-        atomic_json(receipt, {"version": "0.2.0", "source": str(ROOT), "command": command,
+        atomic_json(receipt, {"version": "0.3.0", "source": str(ROOT), "command": command,
+                             "mcpBridge": install_bridge,
                              "reportingSkill": skill_hashes,
                              "hooksExisted": previous_receipt.get("hooksExisted", hooks_existed),
                              "backup": str(backup)})
