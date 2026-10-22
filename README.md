@@ -3,7 +3,7 @@
 [![Tests](https://github.com/31780/agent-progress/actions/workflows/tests.yml/badge.svg)](https://github.com/31780/agent-progress/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Local activity monitoring for Codex chats. See what is working, waiting for approval, interrupted, or finished responding—without invented completion percentages.
+Local activity monitoring for Codex chats, with experimental Dot and ChatGPT Work reports. See what is working, waiting for approval, interrupted, or finished responding—without invented completion percentages.
 
 **Current support: Omarchy on Linux.** This is an early, working implementation. Other Linux desktops, macOS, and Windows are on the [portability roadmap](docs/ROADMAP.md); they are not supported yet. This is an independent community project, not an official OpenAI or Omarchy product.
 
@@ -20,6 +20,7 @@ Local activity monitoring for Codex chats. See what is working, waiting for appr
 - Animated activity bars when the amount of work is unknown.
 - Explicit agent-reported milestones, such as `3/5 steps`.
 - Local records, concurrent writers, conservative restart handling and reversible installation.
+- Optional Dot/ChatGPT Work reports, labeled separately from observed Codex events. Requires local computer access and an agent using the reporting skill; automatic cloud monitoring is not supported.
 
 **A finished response does not mean the task is complete.** Step counts describe an agent's declared plan; they do not become an automatic completion estimate.
 
@@ -43,11 +44,17 @@ The installer backs up existing hook and bar configuration, adds only this proje
 
 Then open Codex CLI and run **`/hooks`**. Review and trust the ten entries labeled **Update Codex progress panel**. Codex skips untrusted definitions. Changed definitions require review again. See [the official hook documentation](https://learn.chatgpt.com/docs/hooks).
 
-Click **◈** in your bar. Its number counts recently observed working or approval states. `!` indicates an approval request; `?` indicates unknown state. Chats appear after their next supported hook event. If observation begins mid-turn, `≥` marks elapsed time as a lower bound.
+Click **◈** in your bar. Its number counts recent working and waiting states. `!` indicates an approval request or reported request for input; `?` indicates unknown state. Chats appear after their next supported hook event or explicit report. If observation begins mid-turn, `≥` marks elapsed time as a lower bound.
 
 **Current** shows ongoing and uncertain observations. Finished responses and interrupted jobs move to **History** automatically. History shows ten chats per page, newest first; use **Older** and **Newer** to browse retained entries. Unknown or ready jobs have a **Move to history** button, which hides the observation without stopping the job or claiming completion. Fresh activity brings a dismissed chat back. A resumed chat updates its existing entry; history is not a transcript or a separate record of every turn.
 
 For title lookup, the helper prefers the Omarchy bundled Codex runtime, then `codex` on PATH. To select another installed executable, make `CODEX_PROGRESS_CODEX_BIN` available in the environment inherited by your desktop session. This changes executable discovery; it does not add support for another OS.
+
+### Experimental Dot and ChatGPT Work reporting
+
+Install the optional local skill with `python3 install.py install --with-reporting-skill`, then ask a Dot or ChatGPT Work task with access to this computer to **use the agent-progress skill to show this task in the panel**. Its cards say **Agent-reported**. Reports become unknown after three quiet minutes; work reported ready for review moves to History.
+
+This is best effort, not automatic observation of all chats. Real Dot/ChatGPT Work execution remains unverified; the reporter-to-panel path is tested in isolation. Ordinary Chat and cloud-only tasks cannot reach the local panel. Read [setup, limitations and the report contract](docs/REPORTING.md).
 
 ## States and limitations
 
@@ -76,6 +83,8 @@ python3 install.py remove
 ```
 
 Removal retains local records and configuration backups. It removes only this project's hook handlers and widget, leaving unrelated hooks/settings intact. Installed files are moved into the backup directory.
+
+If the panel still shows an older interface after an update, run `omarchy restart shell` to reload the bar. Your apps stay open. The optional reporting skill is backed up on updates; removal deletes its unchanged installed files and preserves user edits or unrelated files.
 
 The default branch is `master`. If you cloned the initial `main` branch, switch before updating:
 
@@ -128,7 +137,7 @@ python3 tests/runtime_check.py
 
 This check uses the actual Codex app-server with an isolated state directory and a loopback-only model fixture. It exercises simultaneous sessions, an approval request and decline, interruption, abrupt process loss, and restart. It never accepts an escalation, bypasses hook trust or uses a remote model. It disables plugins/apps and standalone MCP servers declared in the user config; use a controlled local test setup if you have additional managed/project configuration. Runtime logs are kept in ignored `work/`, not committed.
 
-The [architecture and portability roadmap](docs/ROADMAP.md) describes how to separate state logic, agent event sources, OS-specific liveness and desktop interfaces. See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a new interface or integration. DOT and ChatGPT integrations remain deferred until the Codex path is established.
+The [architecture and portability roadmap](docs/ROADMAP.md) describes how to separate state logic, agent event sources, OS-specific liveness and desktop interfaces. See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a new interface or integration. Dot and ChatGPT Work have an experimental reporting adapter; see [its limitations](docs/REPORTING.md). Automatic cloud lifecycle monitoring remains unsupported.
 
 ## License and references
 

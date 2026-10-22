@@ -3,6 +3,7 @@
 import argparse
 import copy
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,8 @@ import time
 
 ROOT = Path(__file__).resolve().parent
 PLUGIN_ID = "nino.codex-progress"
+SKILL_NAME = "agent-progress"
+SKILL_FILES = ("SKILL.md", "scripts/report.py")
 EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest",
           "PostToolUse", "PreCompact", "PostCompact", "Stop", "Interrupt", "SessionEnd")
 
@@ -57,6 +60,8 @@ def atomic_json(path, value):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=("install", "remove"))
+    parser.add_argument("--with-reporting-skill", action="store_true",
+                        help="Install experimental Dot/ChatGPT Work reporting instructions")
     args = parser.parse_args()
     os.umask(0o077)
     home = Path.home()
@@ -64,9 +69,13 @@ def main():
     config = Path(os.environ.get("XDG_CONFIG_HOME", str(home / ".config"))) / "omarchy"
     plugin = config / "plugins" / PLUGIN_ID
     hooks_path = Path(os.environ.get("CODEX_HOME", str(home / ".codex"))) / "hooks.json"
+    skill = hooks_path.parent / "skills" / SKILL_NAME
     state = Path(os.environ.get("XDG_STATE_HOME", str(home / ".local/state"))) / "omarchy-agent-progress"
     receipt = data / "install.json"
     previous_receipt = json.loads(receipt.read_text()) if receipt.exists() else {}
+    install_skill = args.with_reporting_skill or bool(previous_receipt.get("reportingSkill"))
+    if args.action == "install" and install_skill and skill.exists() and not previous_receipt.get("reportingSkill"):
+        raise RuntimeError("Reporting skill already exists without our receipt; inspect before replacing")
     command = "/usr/bin/python3 " + shlex.quote(str(data / "progress.py")) + " hook"
     hooks_existed = hooks_path.exists()
     original = json.loads(hooks_path.read_text()) if hooks_existed else {}
@@ -89,8 +98,18 @@ def main():
         shutil.copy2(ROOT / "src/progress.py", data / "progress.py")
         for name in ("ProgressPanel.qml", "manifest.json"):
             shutil.copy2(ROOT / "plugin" / name, plugin / name)
+        skill_hashes = {}
+        if install_skill:
+            if skill.exists():
+                shutil.copytree(skill, backup / "reporting-skill")
+            for name in SKILL_FILES:
+                destination = skill / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / "skills" / SKILL_NAME / name, destination)
+                skill_hashes[name] = hashlib.sha256(destination.read_bytes()).hexdigest()
         atomic_json(hooks_path, changed)
-        atomic_json(receipt, {"version": "0.1.0", "source": str(ROOT), "command": command,
+        atomic_json(receipt, {"version": "0.2.0", "source": str(ROOT), "command": command,
+                             "reportingSkill": skill_hashes,
                              "hooksExisted": previous_receipt.get("hooksExisted", hooks_existed),
                              "backup": str(backup)})
         subprocess.run(["omarchy-shell", "shell", "rescanPlugins"], check=True)
@@ -110,6 +129,16 @@ def main():
         else:
             atomic_json(hooks_path, changed)
         subprocess.run(["omarchy", "plugin", "disable", PLUGIN_ID], check=True)
+        if previous_receipt.get("reportingSkill") and skill.exists():
+            shutil.copytree(skill, backup / "reporting-skill")
+            for name in SKILL_FILES:
+                path = skill / name
+                expected = previous_receipt["reportingSkill"].get(name)
+                if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == expected:
+                    path.unlink()
+            for directory in (skill / "scripts", skill):
+                if directory.is_dir() and not any(directory.iterdir()):
+                    directory.rmdir()
         shutil.move(str(plugin), str(backup / "plugin"))
         shutil.move(str(data), str(backup / "application"))
         subprocess.run(["omarchy-shell", "shell", "rescanPlugins"], check=True)
