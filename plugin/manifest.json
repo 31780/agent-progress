@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "nino.codex-progress",
+  "name": "Codex Progress",
+  "version": "0.1.0",
+  "author": "Nino",
+  "description": "Local Codex chat activity, approval waits, and reported milestones.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "ProgressPanel.qml"},
+  "barWidget": {
+    "displayName": "Codex Progress",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {},
+    "schema": []
+  }
+}
