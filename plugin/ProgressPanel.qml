@@ -19,6 +19,7 @@ Panel {
     property int historyPage: 0
     property string actionError: ""
     readonly property int pageSize: 10
+    readonly property int attention: snapshot.waiting + (snapshot.inputWaiting || 0)
     readonly property var currentRows: snapshot.current || []
     readonly property var historyRows: snapshot.history || []
     readonly property string helper: (Quickshell.env("XDG_DATA_HOME") || Quickshell.env("HOME") + "/.local/share") + "/omarchy-agent-progress/progress.py"
@@ -53,7 +54,7 @@ Panel {
         dismissProcess.running = true
     }
     function stateColor(status) {
-        if (status === "waiting_approval" || status === "interrupted") return warning
+        if (status === "waiting_approval" || status === "waiting_input" || status === "interrupted") return warning
         if (status === "working") return accent
         return muted
     }
@@ -102,9 +103,9 @@ Panel {
         id: button
         anchors.fill: parent
         bar: root.bar
-        text: "◈ " + (!root.connected ? "?" : root.snapshot.active) + (root.snapshot.waiting > 0 ? " !" : root.snapshot.unknown > 0 ? " ?" : "")
-        active: root.snapshot.waiting > 0
-        tooltipText: "Codex · " + root.snapshot.active + " active chats" + (root.snapshot.unknown ? " · " + root.snapshot.unknown + " unknown" : "")
+        text: "◈ " + (!root.connected ? "?" : root.snapshot.active) + (root.attention > 0 ? " !" : root.snapshot.unknown > 0 ? " ?" : "")
+        active: root.attention > 0
+        tooltipText: "Agent Progress · " + root.snapshot.active + " active chats" + (root.snapshot.unknown ? " · " + root.snapshot.unknown + " unknown" : "")
         onPressed: root.toggle()
         Rectangle {
             anchors.bottom: parent.bottom
@@ -113,9 +114,9 @@ Panel {
             width: Style.space(22); height: Style.space(2)
             radius: height / 2
             color: root.accent
-            visible: root.connected && root.snapshot.active > root.snapshot.waiting
+            visible: root.connected && root.snapshot.active > root.attention
             SequentialAnimation on opacity {
-                running: root.connected && root.snapshot.active > root.snapshot.waiting
+                running: root.connected && root.snapshot.active > root.attention
                 loops: Animation.Infinite
                 NumberAnimation { to: 0.25; duration: 700 }
                 NumberAnimation { to: 1; duration: 700 }
@@ -154,7 +155,7 @@ Panel {
                     spacing: Style.space(12)
                     Text {
                         width: parent.width
-                        text: "Codex"
+                        text: "Agent Progress"
                         textFormat: Text.PlainText
                         font.family: root.fontName
                         font.pixelSize: Style.font.display
@@ -186,7 +187,7 @@ Panel {
                     }
                     Text {
                         width: parent.width
-                        text: !root.connected ? "Connection unknown · local reader unavailable" : root.showHistory ? "Recent chats · past 7 days · 10 per page" : root.snapshot.active + " active  ·  " + root.snapshot.waiting + " awaiting approval"
+                        text: !root.connected ? "Connection unknown · local reader unavailable" : root.showHistory ? "Recent chats · past 7 days · 10 per page" : root.snapshot.active + " active  ·  " + root.snapshot.waiting + " awaiting approval" + ((root.snapshot.inputWaiting || 0) ? "  ·  " + root.snapshot.inputWaiting + " awaiting input" : "")
                         textFormat: Text.PlainText
                         wrapMode: Text.WordWrap
                         font.family: root.fontName; font.pixelSize: Style.font.body
@@ -195,7 +196,7 @@ Panel {
                     Text {
                         visible: root.rows.length === 0
                         width: parent.width
-                        text: root.showHistory ? "No history yet. Finished responses and interrupted jobs will appear here." : "No current jobs. Finished responses and interrupted jobs move to History. New chats appear after their next hook event."
+                        text: root.showHistory ? "No history yet. Finished responses, interruptions and work reported ready for review appear here." : "No current jobs. New activity appears after a hook event or agent report. Finished responses and work reported ready for review move to History."
                         textFormat: Text.PlainText
                         wrapMode: Text.WordWrap
                         font.family: root.fontName; font.pixelSize: Style.font.body
@@ -233,6 +234,13 @@ Panel {
                                     maximumLineCount: 2; elide: Text.ElideRight; wrapMode: Text.Wrap
                                     color: root.fg
                                     font.family: root.fontName; font.pixelSize: Style.font.body; font.bold: true
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: (card.modelData.sourceLabel || "Codex") + " · " + (card.modelData.observation === "agent_report" ? "Agent-reported" : "Hook-observed")
+                                    textFormat: Text.PlainText
+                                    font.family: root.fontName; font.pixelSize: Style.font.body
+                                    color: root.muted
                                 }
                                 Item {
                                     width: parent.width
@@ -286,7 +294,7 @@ Panel {
                                 }
                                 Text {
                                     width: parent.width
-                                    text: "Last event " + root.duration(card.modelData.age) + " ago" + (!card.modelData.titleKnown ? " · title pending" : "")
+                                    text: (card.modelData.observation === "agent_report" ? "Last report " : "Last event ") + root.duration(card.modelData.age) + " ago" + (!card.modelData.titleKnown ? " · title pending" : "")
                                     textFormat: Text.PlainText
                                     font.family: root.fontName; font.pixelSize: Style.font.body
                                     color: root.muted
@@ -334,7 +342,7 @@ Panel {
                     }
                     Text {
                         width: parent.width
-                        text: "Motion means activity; ≥ marks a partial time observation. A finished response does not mean the task is complete."
+                        text: "Motion means activity; ≥ marks a partial time observation. Reported activity is best effort. A finished response does not mean the task is complete."
                         textFormat: Text.PlainText
                         wrapMode: Text.WordWrap
                         font.family: root.fontName; font.pixelSize: Style.font.body

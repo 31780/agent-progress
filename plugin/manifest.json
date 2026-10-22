@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "id": "nino.codex-progress",
-  "name": "Codex Progress",
-  "version": "0.1.0",
+  "name": "Agent Progress",
+  "version": "0.2.0",
   "author": "Nino",
-  "description": "Local Codex chat activity, approval waits, and reported milestones.",
+  "description": "Codex lifecycle activity and experimental Dot/ChatGPT Work reports.",
   "kinds": ["bar-widget"],
   "entryPoints": {"barWidget": "ProgressPanel.qml"},
   "barWidget": {
-    "displayName": "Codex Progress",
+    "displayName": "Agent Progress",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right",

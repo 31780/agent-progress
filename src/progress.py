@@ -12,14 +12,19 @@ import sqlite3
 import subprocess
 import sys
 import time
+import uuid
 
 EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest",
           "PostToolUse", "PreCompact", "PostCompact", "Stop", "Interrupt", "SessionEnd")
-ACTIVE = {"working", "waiting_approval"}
-TERMINAL = {"response_finished", "interrupted"}
+ACTIVE = {"working", "waiting_approval", "waiting_input"}
+TERMINAL = {"response_finished", "interrupted", "ready_for_review"}
 LABELS = {"working": "Working", "waiting_approval": "Waiting for approval",
           "interrupted": "Interrupted", "response_finished": "Response finished",
-          "connection_unknown": "Connection unknown", "idle": "Ready"}
+          "connection_unknown": "Connection unknown", "idle": "Ready",
+          "waiting_input": "Waiting for input", "ready_for_review": "Ready for review"}
+SOURCES = {"codex": "Codex", "dot": "Dot", "chatgpt": "ChatGPT Work"}
+REPORT_STATES = {"working", "waiting_input", "ready_for_review"}
+REPORT_PREFIX = "reported:"
 STALE_SECONDS = 180
 RETENTION_SECONDS = 7 * 86400
 
@@ -129,7 +134,8 @@ def activity(tool):
 def reduce_event(old, event, now, owner):
     name = event.get("hook_event_name")
     sid = event.get("session_id")
-    if name not in EVENTS or not isinstance(sid, str) or not sid or len(sid) > 200:
+    if (name not in EVENTS or not isinstance(sid, str) or not sid or len(sid) > 200
+            or sid.startswith(REPORT_PREFIX)):
         raise ValueError("Unsupported event or missing session_id")
     r = dict(old or {"id": sid, "status": "idle", "started": None, "ended": None,
                      "title": "", "turn": "", "seen_turns": [], "pending": {},
@@ -213,12 +219,86 @@ def ingest(event, now=None, owner=None):
 def observed_status(record, now):
     status, detail = record["status"], record["activity"]
     if status in ACTIVE:
+        if record.get("observation") == "agent_report":
+            if now - record["updated"] > STALE_SECONDS:
+                return "connection_unknown", "No agent report for 3 minutes; last reported " + LABELS[status].lower()
+            return status, detail
         owner = record.get("owner")
         if owner is None or process_identity(owner["pid"]) != owner:
             return "connection_unknown", "Codex process unavailable; last seen " + LABELS[status].lower()
         if now - record["updated"] > STALE_SECONDS:
             return "connection_unknown", "No hook event for 3 minutes; last seen " + LABELS[status].lower()
     return status, detail
+
+
+def report_text(value, field, limit):
+    if not isinstance(value, str) or not value.strip() or len(value) > limit:
+        raise ValueError(f"{field} must be nonempty text of at most {limit} characters")
+    return clean(value, limit)
+
+
+def observe(message, now=None):
+    """Explicit local reports, separate from observed Codex lifecycle events.
+
+    This interface does not discover chats or establish cloud liveness. A run
+    token and monotonic sequence prevent old writers reviving newer work.
+    """
+    now = time.time() if now is None else now
+    if not isinstance(message, dict):
+        raise ValueError("Expected a report object")
+    action = message.get("action")
+    fields = ({"action", "source", "session", "title"} if action == "begin" else
+              {"action", "id", "run", "sequence", "status", "milestone"})
+    if action not in ("begin", "update") or set(message) - fields:
+        raise ValueError("Unsupported report action or fields")
+    if action == "begin":
+        source = message.get("source")
+        if source not in ("dot", "chatgpt"):
+            raise ValueError("Reports support dot or chatgpt; Codex uses hooks")
+        session = report_text(message.get("session"), "session", 200)
+        title = report_text(message.get("title"), "title", 160)
+        sid = REPORT_PREFIX + source + ":" + hashlib.sha256(session.encode()).hexdigest()
+    else:
+        sid = report_text(message.get("id"), "id", 200)
+        if not sid.startswith(REPORT_PREFIX):
+            raise ValueError("Only reported activity can be updated here")
+        sequence = message.get("sequence")
+        if type(sequence) is not int or not 1 <= sequence <= 2**53 - 1:
+            raise ValueError("sequence must be a positive integer")
+        if message.get("status") not in REPORT_STATES:
+            raise ValueError("Report status must be working, waiting_input or ready_for_review")
+        milestone = message.get("milestone")
+        if milestone is not None:
+            if (not isinstance(milestone, dict) or set(milestone) != {"done", "total"}
+                    or any(type(milestone[k]) is not int for k in ("done", "total"))
+                    or not 0 <= milestone["done"] <= milestone["total"] <= 1000 or milestone["total"] < 1):
+                raise ValueError("milestone requires integer 0 <= done <= total <= 1000 and total > 0")
+    with database() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if action == "begin":
+            record = {"id": sid, "source": source, "observation": "agent_report", "title": title,
+                      "run": str(uuid.uuid4()), "sequence": 0, "status": "working",
+                      "activity": "Agent reports working", "started": now, "ended": None,
+                      "updated": now, "elapsed_exact": False, "milestone": None}
+        else:
+            row = conn.execute("SELECT record FROM tasks WHERE id=?", (sid,)).fetchone()
+            if not row:
+                raise ValueError("No report with that id; begin a report first")
+            record = json.loads(row[0])
+            if (record.get("observation") != "agent_report" or message.get("run") != record.get("run")
+                    or sequence <= record["sequence"] or record["status"] in TERMINAL):
+                raise ValueError("Report is stale or closed; retain the current run and increase sequence, or begin new work")
+            status = message["status"]
+            record.update(sequence=sequence, status=status, updated=now,
+                          activity={"working": "Agent reports working", "waiting_input": "Agent reports it needs your input",
+                                    "ready_for_review": "Agent reports work is ready for your review"}[status],
+                          ended=now if status == "ready_for_review" else None)
+            if "milestone" in message:
+                record["milestone"] = {**milestone, "source": "Agent-reported plan"} if milestone else None
+            record.pop("dismissed_at", None)
+        conn.execute("INSERT OR REPLACE INTO tasks VALUES (?, ?, ?)", (sid, now, json.dumps(record)))
+        conn.execute("DELETE FROM tasks WHERE updated < ?", (now - RETENTION_SECONDS,))
+    return {"id": sid, "run": record["run"], "sequence": record["sequence"], "status": record["status"]}
 
 
 def dismiss(session, updated, now=None):
@@ -251,12 +331,15 @@ def snapshot(now=None):
         tasks.append({"id": r["id"], "title": r["title"] or
                       (Path(r.get("cwd") or "/").name or "Codex") + " · " + r["id"][:8],
                       "titleKnown": bool(r["title"]), "status": status, "label": LABELS[status],
+                      "source": r.get("source", "codex"), "sourceLabel": SOURCES[r.get("source", "codex")],
+                      "observation": r.get("observation", "hook"),
                       "activity": detail, "elapsed": int(elapsed), "age": int(age),
                       "elapsedExact": r.get("elapsed_exact", False),
                       "milestone": r.get("milestone"), "updated": r["updated"],
                       "inHistory": status in TERMINAL or r.get("dismissed_at") is not None,
                       "historyAt": r.get("dismissed_at") or r.get("ended") or r["updated"]})
-    rank = {"waiting_approval": 0, "working": 1, "connection_unknown": 2, "interrupted": 3, "response_finished": 4, "idle": 5}
+    rank = {"waiting_approval": 0, "waiting_input": 0, "working": 1, "connection_unknown": 2,
+            "interrupted": 3, "response_finished": 4, "ready_for_review": 4, "idle": 5}
     tasks.sort(key=lambda r: (rank[r["status"]], -r["updated"]))
     current = [t for t in tasks if not t["inHistory"]]
     history = sorted((t for t in tasks if t["inHistory"]), key=lambda t: t["historyAt"], reverse=True)
@@ -264,6 +347,7 @@ def snapshot(now=None):
             "current": current, "history": history,
             "active": sum(t["status"] in ACTIVE for t in current),
             "waiting": sum(t["status"] == "waiting_approval" for t in current),
+            "inputWaiting": sum(t["status"] == "waiting_input" for t in current),
             "unknown": sum(t["status"] == "connection_unknown" for t in current)}
 
 
@@ -317,7 +401,7 @@ class Rpc:
 
 def titles():
     with database() as conn:
-        ids = [r[0] for r in conn.execute("SELECT id FROM tasks WHERE updated >= ? ORDER BY updated DESC LIMIT 200",
+        ids = [r[0] for r in conn.execute("SELECT id FROM tasks WHERE id NOT LIKE 'reported:%' AND updated >= ? ORDER BY updated DESC LIMIT 200",
                                         (time.time() - RETENTION_SECONDS,))]
     if not ids:
         return
@@ -344,6 +428,8 @@ def titles():
 
 
 def report(args):
+    if args.session.startswith(REPORT_PREFIX):
+        raise ValueError("Use observe for reported activity and its run/sequence guards")
     if args.done < 0 or args.total < 1 or args.done > args.total:
         raise ValueError("Milestones require 0 <= done <= total and total > 0")
     with database() as conn:
@@ -361,7 +447,7 @@ def report(args):
 def main():
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("hook", "snapshot", "titles", "hooks"):
+    for name in ("hook", "snapshot", "titles", "hooks", "observe"):
         sub.add_parser(name)
     dismiss_parser = sub.add_parser("dismiss")
     dismiss_parser.add_argument("--session", required=True)
@@ -381,6 +467,11 @@ def main():
             ingest(json.loads(raw), owner=codex_owner())
         elif args.command == "snapshot":
             print(json.dumps(snapshot()))
+        elif args.command == "observe":
+            raw = sys.stdin.buffer.read(8193)
+            if len(raw) > 8192:
+                raise ValueError("Report input too large")
+            print(json.dumps(observe(json.loads(raw))))
         elif args.command == "titles":
             titles()
         elif args.command == "hooks":

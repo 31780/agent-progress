@@ -13,6 +13,39 @@ spec.loader.exec_module(i)
 
 
 class InstallTests(unittest.TestCase):
+    def test_optional_skill_updates_and_removes_only_owned_unchanged_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            env = {"XDG_CONFIG_HOME": str(root / "config"), "XDG_DATA_HOME": str(root / "share"),
+                   "XDG_STATE_HOME": str(root / "state"), "CODEX_HOME": str(root / "codex")}
+            skill = root / "codex/skills/agent-progress"
+            with patch.dict(os.environ, env), patch.object(i.subprocess, "run"), \
+                 patch.object(i.subprocess, "check_output", return_value=json.dumps([{"id": i.PLUGIN_ID}]).encode()):
+                with patch.object(sys, "argv", ["install.py", "install", "--with-reporting-skill"]):
+                    i.main()
+                self.assertTrue((skill / "scripts/report.py").is_file())
+                with patch.object(sys, "argv", ["install.py", "install"]):
+                    i.main()
+                (skill / "personal.txt").write_text("Keep this")
+                (skill / "SKILL.md").write_text("My edited instructions")
+                with patch.object(sys, "argv", ["install.py", "remove"]):
+                    i.main()
+                self.assertEqual((skill / "personal.txt").read_text(), "Keep this")
+                self.assertEqual((skill / "SKILL.md").read_text(), "My edited instructions")
+                self.assertFalse((skill / "scripts/report.py").exists())
+
+    def test_optional_skill_does_not_overwrite_an_unowned_skill(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skill = root / "codex/skills/agent-progress"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("Already here")
+            with patch.dict(os.environ, {"CODEX_HOME": str(root / "codex"), "XDG_DATA_HOME": str(root / "share")}), \
+                 patch.object(sys, "argv", ["install.py", "install", "--with-reporting-skill"]):
+                with self.assertRaises(RuntimeError):
+                    i.main()
+            self.assertEqual((skill / "SKILL.md").read_text(), "Already here")
+
     def test_preserves_sibling_hooks_and_roundtrips(self):
         before = {"description": "My hooks", "hooks": {"Stop": [
             {"matcher": "custom", "hooks": [{"type": "command", "command": "existing"}]}],

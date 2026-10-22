@@ -2,7 +2,7 @@
 
 Welcome! Agent Progress currently supports Codex on Omarchy/Linux. Documentation fixes, reproducible bug reports, accessibility improvements and tests for lifecycle edge cases are all useful. You do not need permission to open a pull request for a small fix.
 
-Discuss larger desktop or agent integrations in an issue or [Discussion](https://github.com/31780/agent-progress/discussions) first; see the [roadmap](docs/ROADMAP.md). DOT and ChatGPT integrations remain deferred until the Codex path is established.
+Discuss larger desktop or agent integrations in an issue or [Discussion](https://github.com/31780/agent-progress/discussions) first; see the [roadmap](docs/ROADMAP.md). Dot and ChatGPT Work have an experimental reporting adapter; see [its limitations](docs/REPORTING.md). Automatic cloud lifecycle monitoring remains unsupported.
 
 ## Make your first contribution
 
