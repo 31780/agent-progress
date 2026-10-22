@@ -7,13 +7,14 @@ Local activity monitoring for Codex chats. See what is working, waiting for appr
 
 **Current support: Omarchy on Linux.** This is an early, working implementation. Other Linux desktops, macOS, and Windows are on the [portability roadmap](docs/ROADMAP.md); they are not supported yet. This is an independent community project, not an official OpenAI or Omarchy product.
 
-<img src="docs/images/omarchy-preview.png" alt="Simulated preview of working, approval, interrupted, response-finished and connection-unknown chat states" width="460">
+<img src="docs/images/omarchy-preview.png" alt="Simulated Current view with approval, working and unknown jobs, plus a History tab" width="460">
 
-*Simulated preview using the installed Omarchy theme. The regular popup scrolls; this taller preview shows every state.*
+*Simulated preview using the installed Omarchy theme. Finished responses and interrupted jobs appear in the separate [History view](docs/images/history-preview.png).*
 
 ## Features
 
 - Compact bar indicator and a popup with one entry per observed chat.
+- Current and History views; finished responses and interruptions leave the current list automatically.
 - Actual chat titles, generic tool activity, elapsed time and last-event age.
 - Separate working, approval, interrupted, response-finished and unknown states.
 - Animated activity bars when the amount of work is unknown.
@@ -43,6 +44,8 @@ The installer backs up existing hook and bar configuration, adds only this proje
 Then open Codex CLI and run **`/hooks`**. Review and trust the ten entries labeled **Update Codex progress panel**. Codex skips untrusted definitions. Changed definitions require review again. See [the official hook documentation](https://learn.chatgpt.com/docs/hooks).
 
 Click **◈** in your bar. Its number counts recently observed working or approval states. `!` indicates an approval request; `?` indicates unknown state. Chats appear after their next supported hook event. If observation begins mid-turn, `≥` marks elapsed time as a lower bound.
+
+**Current** shows ongoing and uncertain observations. Finished responses and interrupted jobs move to **History** automatically. History shows ten chats per page, newest first; use **Older** and **Newer** to browse retained entries. Unknown or ready jobs have a **Move to history** button, which hides the observation without stopping the job or claiming completion. Fresh activity brings a dismissed chat back. A resumed chat updates its existing entry; history is not a transcript or a separate record of every turn.
 
 For title lookup, the helper prefers the Omarchy bundled Codex runtime, then `codex` on PATH. To select another installed executable, make `CODEX_PROGRESS_CODEX_BIN` available in the environment inherited by your desktop session. This changes executable discovery; it does not add support for another OS.
 
@@ -96,7 +99,7 @@ The installer honors XDG directory variables and `CODEX_HOME`. `OMARCHY_PROGRESS
 
 The observer stores titles, workspace paths, generic activity, timestamps, process identity, milestones and hashed tool-matching keys. It discards prompts, command bodies, tool output, transcript paths and assistant replies. Raw transcript parsing is not used. Records and backups stay local; this project adds no telemetry or upload endpoint. Titles use Codex's documented `thread/read` metadata interface with `includeTurns: false`.
 
-Hooks run synchronously with a one-second timeout and return `{}`. They never approve, deny, block, or continue a Codex action. Storage/input failures fail open. The panel polls every two seconds; titles refresh approximately once per minute and on opening. Terminal entries display for one day, other records for seven days; reads filter expiry and hook writes perform cleanup. Snapshots contain at most 200 entries.
+Hooks run synchronously with a one-second timeout and return `{}`. They never approve, deny, block, or continue a Codex action. Storage/input failures fail open. The panel polls every two seconds; titles refresh approximately once per minute and on opening. Records expire after seven days without a hook; reads filter expiry and hook writes perform cleanup. Dismissing an entry does not refresh its expiry. Snapshots contain at most 200 entries across Current and History.
 
 ## Milestones
 

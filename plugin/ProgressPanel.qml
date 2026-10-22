@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
+import qs.Ui as Ui
 
 Panel {
     id: root
@@ -14,13 +15,19 @@ Panel {
     property bool healthy: false
     property double lastRead: 0
     property double now: Date.now() / 1000
+    property bool showHistory: false
+    property int historyPage: 0
+    property string actionError: ""
+    readonly property int pageSize: 10
+    readonly property var currentRows: snapshot.current || []
+    readonly property var historyRows: snapshot.history || []
     readonly property string helper: (Quickshell.env("XDG_DATA_HOME") || Quickshell.env("HOME") + "/.local/share") + "/omarchy-agent-progress/progress.py"
     readonly property color fg: bar ? bar.foreground : Commons.Color.foreground
     readonly property color muted: Qt.rgba(fg.r, fg.g, fg.b, 0.62)
     readonly property color accent: Commons.Color.accent
     readonly property color warning: bar ? bar.urgent : Commons.Color.urgent
     readonly property bool connected: healthy && now - lastRead < 10
-    readonly property var rows: snapshot.tasks || []
+    readonly property var rows: showHistory ? historyRows.slice(historyPage * pageSize, (historyPage + 1) * pageSize) : currentRows
     readonly property string fontName: bar ? bar.fontFamily : Style.font.family
     implicitWidth: button.implicitWidth
     implicitHeight: button.implicitHeight
@@ -33,6 +40,18 @@ Panel {
     }
     function refresh() { if (!reader.running) reader.running = true }
     function refreshTitles() { if (!titleReader.running) titleReader.running = true }
+    function selectHistory(value) {
+        showHistory = value
+        historyPage = 0
+        scroll.contentY = 0
+        actionError = ""
+    }
+    function dismissJob(job) {
+        if (dismissProcess.running || !connected) return
+        actionError = ""
+        dismissProcess.command = ["/usr/bin/python3", root.helper, "dismiss", "--session", job.id, "--updated", String(job.updated)]
+        dismissProcess.running = true
+    }
     function stateColor(status) {
         if (status === "waiting_approval" || status === "interrupted") return warning
         if (status === "working") return accent
@@ -40,6 +59,7 @@ Panel {
     }
     Component.onCompleted: { refresh(); refreshTitles() }
     onOpenedChanged: if (opened) {
+        selectHistory(false)
         refresh()
         refreshTitles()
         Qt.callLater(function() { keys.forceActiveFocus() })
@@ -58,6 +78,7 @@ Panel {
                     var data = JSON.parse(text)
                     if (data.schemaVersion !== 1 || !Array.isArray(data.tasks)) throw new Error("Invalid data")
                     root.snapshot = data
+                    root.historyPage = Math.min(root.historyPage, Math.max(0, Math.ceil(root.historyRows.length / root.pageSize) - 1))
                     root.lastRead = Date.now() / 1000
                     root.healthy = true
                 } catch (error) { root.healthy = false }
@@ -68,6 +89,13 @@ Panel {
     Process {
         id: titleReader
         command: ["/usr/bin/python3", root.helper, "titles"]
+    }
+    Process {
+        id: dismissProcess
+        onExited: function(code, status) {
+            if (code !== 0) root.actionError = "Could not dismiss this job. It may have changed; refresh and try again."
+            root.refresh()
+        }
     }
 
     WidgetButton {
@@ -104,15 +132,14 @@ Panel {
         focusTarget: keys
         contentWidth: panel.fittedContentWidth(Style.space(460))
         contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(620))
-        PanelKeyCatcher {
+        Item {
             id: keys
             anchors.fill: parent
-            onCloseRequested: root.close()
-            onActivateRequested: root.refresh()
-            onTabRequested: function(direction) { root.switchPanel(direction) }
-            onMoveRequested: function(dx, dy) {
-                scroll.contentY = Math.max(0, Math.min(scroll.contentHeight - scroll.height, scroll.contentY + dy * Style.space(88)))
-            }
+            focus: true
+            Keys.onEscapePressed: root.close()
+            Keys.onReturnPressed: root.refresh()
+            Keys.onDownPressed: scroll.contentY = Math.max(0, Math.min(scroll.contentHeight - scroll.height, scroll.contentY + Style.space(88)))
+            Keys.onUpPressed: scroll.contentY = Math.max(0, scroll.contentY - Style.space(88))
             Flickable {
                 id: scroll
                 anchors.fill: parent
@@ -133,9 +160,33 @@ Panel {
                         font.pixelSize: Style.font.display
                         color: root.fg
                     }
+                    Row {
+                        width: parent.width
+                        spacing: Style.space(8)
+                        Ui.Button {
+                            id: currentButton
+                            width: (parent.width - parent.spacing) / 2
+                            text: "Current · " + root.currentRows.length
+                            selected: !root.showHistory
+                            focusable: true
+                            foreground: root.fg
+                            fontFamily: root.fontName
+                            onClicked: root.selectHistory(false)
+                        }
+                        Ui.Button {
+                            id: historyButton
+                            width: (parent.width - parent.spacing) / 2
+                            text: "History · " + root.historyRows.length
+                            selected: root.showHistory
+                            focusable: true
+                            foreground: root.fg
+                            fontFamily: root.fontName
+                            onClicked: root.selectHistory(true)
+                        }
+                    }
                     Text {
                         width: parent.width
-                        text: root.connected ? root.snapshot.active + " active  ·  " + root.snapshot.waiting + " awaiting approval" : "Connection unknown · local reader unavailable"
+                        text: !root.connected ? "Connection unknown · local reader unavailable" : root.showHistory ? "Recent chats · past 7 days · 10 per page" : root.snapshot.active + " active  ·  " + root.snapshot.waiting + " awaiting approval"
                         textFormat: Text.PlainText
                         wrapMode: Text.WordWrap
                         font.family: root.fontName; font.pixelSize: Style.font.body
@@ -144,11 +195,20 @@ Panel {
                     Text {
                         visible: root.rows.length === 0
                         width: parent.width
-                        text: "Waiting for the first hook event. Review the new hooks with /hooks in Codex CLI, then start or resume a chat."
+                        text: root.showHistory ? "No history yet. Finished responses and interrupted jobs will appear here." : "No current jobs. Finished responses and interrupted jobs move to History. New chats appear after their next hook event."
                         textFormat: Text.PlainText
                         wrapMode: Text.WordWrap
                         font.family: root.fontName; font.pixelSize: Style.font.body
                         color: root.muted
+                    }
+                    Text {
+                        visible: root.actionError !== ""
+                        width: parent.width
+                        text: root.actionError
+                        textFormat: Text.PlainText
+                        wrapMode: Text.WordWrap
+                        font.family: root.fontName; font.pixelSize: Style.font.body
+                        color: root.warning
                     }
                     Repeater {
                         model: root.rows
@@ -231,7 +291,45 @@ Panel {
                                     font.family: root.fontName; font.pixelSize: Style.font.body
                                     color: root.muted
                                 }
+                                Ui.Button {
+                                    visible: !root.showHistory && (card.status === "connection_unknown" || card.status === "idle")
+                                    text: "Move to history"
+                                    tooltipText: "Hide this observation until fresh activity arrives. This does not finish or stop the job."
+                                    enabled: root.connected && !dismissProcess.running
+                                    opacity: enabled ? 1 : 0.4
+                                    focusable: true
+                                    foreground: root.muted
+                                    fontFamily: root.fontName
+                                    onClicked: root.dismissJob(card.modelData)
+                                }
                             }
+                        }
+                    }
+                    Row {
+                        visible: root.showHistory && root.historyRows.length > root.pageSize
+                        width: parent.width
+                        spacing: Style.space(8)
+                        Ui.Button {
+                            id: newerButton
+                            width: (parent.width - parent.spacing) / 2
+                            text: "← Newer"
+                            enabled: root.historyPage > 0
+                            opacity: enabled ? 1 : 0.4
+                            focusable: true
+                            foreground: root.fg
+                            fontFamily: root.fontName
+                            onClicked: { root.historyPage--; scroll.contentY = 0 }
+                        }
+                        Ui.Button {
+                            id: olderButton
+                            width: (parent.width - parent.spacing) / 2
+                            text: "Older →"
+                            enabled: (root.historyPage + 1) * root.pageSize < root.historyRows.length
+                            opacity: enabled ? 1 : 0.4
+                            focusable: true
+                            foreground: root.fg
+                            fontFamily: root.fontName
+                            onClicked: { root.historyPage++; scroll.contentY = 0 }
                         }
                     }
                     Text {

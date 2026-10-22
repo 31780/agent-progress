@@ -159,6 +159,68 @@ class ProgressTests(unittest.TestCase):
         with patch.dict(os.environ, {"CODEX_PROGRESS_CODEX_BIN": sys.executable}):
             self.assertEqual(p.codex_binary(), sys.executable)
 
+    def test_finished_and_interrupted_chats_leave_current_for_history(self):
+        self.event("UserPromptSubmit")
+        self.event("Stop", at=2)
+        self.event("Interrupt", sid="chat-b", at=3)
+        data = p.snapshot(self.now + 4)
+        self.assertEqual(data["current"], [])
+        self.assertEqual([r["status"] for r in data["history"]], ["interrupted", "response_finished"])
+        self.assertEqual((data["active"], data["waiting"]), (0, 0))
+
+    def test_history_order_and_current_jobs_survive_more_than_ten_entries(self):
+        for n in range(12):
+            self.event("Stop", sid=f"finished-{n}", at=n)
+            self.event("UserPromptSubmit", sid=f"current-{n}", at=n)
+        data = p.snapshot(self.now + 13)
+        self.assertEqual(len(data["current"]), 12)
+        self.assertEqual([r["id"] for r in data["history"]], [f"finished-{n}" for n in reversed(range(12))])
+        self.assertEqual(data["active"], 12)
+
+    def test_history_retained_for_seven_days(self):
+        self.event("Stop")
+        self.assertEqual(len(p.snapshot(self.now + 2 * 86400)["history"]), 1)
+        self.assertEqual(p.snapshot(self.now + p.RETENTION_SECONDS + 1)["history"], [])
+
+    def test_dismiss_unknown_preserves_status_and_resumes_on_fresh_event(self):
+        self.event("UserPromptSubmit")
+        stale = self.now + p.STALE_SECONDS + 1
+        p.dismiss("chat-a", self.now, stale)
+        data = p.snapshot(stale)
+        self.assertEqual((data["current"], data["unknown"]), ([], 0))
+        self.assertEqual(data["history"][0]["status"], "connection_unknown")
+        self.assertEqual(data["history"][0]["updated"], self.now)
+        self.event("PreToolUse", at=p.STALE_SECONDS + 2, tool_name="Bash")
+        data = p.snapshot(stale + 1)
+        self.assertEqual(data["history"], [])
+        self.assertEqual(data["current"][0]["status"], "working")
+
+    def test_cannot_dismiss_working_approval_or_a_changed_observation(self):
+        self.event("UserPromptSubmit")
+        with self.assertRaises(ValueError):
+            p.dismiss("chat-a", self.now, self.now)
+        self.event("PermissionRequest", at=1, tool_name="Bash")
+        with self.assertRaises(ValueError):
+            p.dismiss("chat-a", self.now + 1, self.now + 1)
+        self.event("SessionEnd", at=2)
+        with self.assertRaises(ValueError):
+            p.dismiss("chat-a", self.now + 1, self.now + 2)
+
+    def test_resumed_history_chat_returns_to_current_with_new_turn(self):
+        self.event("Stop")
+        self.event("UserPromptSubmit", turn="t2", at=2)
+        data = p.snapshot(self.now + 3)
+        self.assertEqual(data["history"], [])
+        self.assertEqual(data["current"][0]["status"], "working")
+
+    def test_ready_can_be_dismissed_and_persists_across_readers(self):
+        self.event("SessionStart", turn="")
+        subprocess.check_call([sys.executable, str(ROOT / "src/progress.py"), "dismiss",
+                               "--session", "chat-a", "--updated", str(self.now)])
+        data = json.loads(subprocess.check_output([sys.executable, str(ROOT / "src/progress.py"), "snapshot"]))
+        self.assertEqual(data["current"], [])
+        self.assertEqual(data["history"][0]["status"], "idle")
+
     def test_runtime_falls_back_to_cli_when_bundle_is_absent(self):
         with patch.dict(os.environ, {"CODEX_PROGRESS_CODEX_BIN": ""}), \
              patch.object(p.Path, "is_file", return_value=False), \
