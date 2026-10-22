@@ -12,17 +12,23 @@ import sys
 
 import progress
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 PROTOCOLS = ("2025-11-25", "2025-06-18")
 MAX_MESSAGE = 16384
 INSTRUCTIONS = (
-    "Use Agent Progress only when the user asks to track this task. Call begin_report once, "
+    "Use Agent Progress when the user asks to track this task or has a standing reporting preference "
+    "that covers it. A standing preference does not need to be repeated per task. Respect opt-outs. "
+    "Call begin_report once per distinct task, "
     "retain its id/run, then update_report at meaningful transitions with increasing sequence. "
     "Each call needs a new request_id UUID; an immediate retry must reuse identical arguments. "
     "Never retry an old request after seven days. Quiet reports become unknown after three minutes. "
-    "No artificial heartbeats, guessed percentages, approval claims, or reports for other chats. "
-    "Source dot means ChatGPT's Dot; chatgpt means ChatGPT Work. Use the host task ID, or retain "
-    "a reporter UUID if unavailable; never scrape transcripts. Titles must be non-sensitive. "
+    "No artificial heartbeats, guessed percentages, approval claims, or impersonating other chats. "
+    "Source dot means ChatGPT's Dot; chatgpt means ChatGPT Work. Codex uses lifecycle hooks instead. "
+    "Use a distinct host task ID as session, or retain a separate reporter UUID for each work item "
+    "if one Dot conversation handles several tasks. Never reuse one global Dot session for all work. "
+    "Retain each task's id/run/sequence separately. Report only work you perform or coordinate, "
+    "based on your own actions or explicit results; never scrape transcripts or infer worker liveness. "
+    "Titles must be non-sensitive. "
     "Use waiting_input only after asking the user, ready_for_review only when a deliverable is ready. "
     "A finished report moves to History. New work needs a fresh begin. If reporting fails, continue "
     "the user's task and explain once; do not retry in a loop or bypass a stale-run error."
@@ -42,7 +48,8 @@ REQUEST_ID = {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 
 TOOLS = [
     {"name": "begin_report", "title": "Show this task in Agent Progress",
      "description": "Begin an explicit Dot or ChatGPT Work report on the owner's desktop panel. "
-                    "Only when asked to track this task. This is agent-reported activity, not lifecycle monitoring. "
+                    "Use for a task-specific request or a user-authorized standing reporting preference. "
+                    "This is agent-reported activity, not lifecycle monitoring. "
                     "Use a short non-sensitive title and retain the returned id/run. A new begin replaces the previous run.",
      "inputSchema": object_schema({"request_id": REQUEST_ID, "source": {"type": "string", "enum": ["dot", "chatgpt"]},
                                    "session": text_schema(200), "title": text_schema(160)},

@@ -58,10 +58,10 @@ Each target needs clean-install/update/remove checks, real approval/interruption
 
 ## Phase 4 — additional agent sources
 
-Codex's initial lifecycle path is established. Dot and ChatGPT Work now have an experimental local report adapter with source identity, run tokens, ordered updates and explicit evidence labels. See [reporting capabilities and limitations](REPORTING.md). The adapter and skill are fixture-tested; real Dot/Work execution still needs verification. Automatic cloud monitoring remains blocked by the absence of a supported personal-account event feed. Enterprise-managed remote hooks require a separate delivery integration.
+Codex's initial lifecycle path is established. Dot and ChatGPT Work now have an experimental local report adapter with source identity, run tokens, ordered updates and explicit evidence labels. See [reporting capabilities and limitations](REPORTING.md). The adapter and skill are fixture-tested, and the owner has confirmed a real cloud Dot report in the panel. Automatic cloud lifecycle monitoring remains blocked by the absence of a supported personal-account event feed. Enterprise-managed remote hooks require a separate delivery integration.
 
-The optional [private MCP bridge](CLOUD_REPORTING.md) now supplies a transport from cloud Dot without desktop-control access. Its stdio contract and official SDK interoperability are verified locally; account linking and a real Dot call remain required. This is explicit reporting, not an automatic event feed.
+The optional [private MCP bridge](CLOUD_REPORTING.md) now supplies a transport from cloud Dot without desktop-control access. Its stdio contract and official SDK interoperability are verified locally, with ChatGPT discovery and a real report confirmed through the tunnel. A user can save a standing reporting preference in Dot to avoid asking per task. This is explicit, best-effort reporting, not an automatic event feed or guaranteed coverage.
 
-Next: verify a real tunnel-connected reporting task, collect reliability feedback, and evaluate documented event feeds as they become available. New adapters must preserve source/session/turn identity, expose capability gaps, and avoid scraping private internal databases or transcripts.
+Next: collect reliability feedback across tasks and environments, and evaluate documented event feeds as they become available. New adapters must preserve source/session/turn identity, expose capability gaps, and avoid scraping private internal databases or transcripts.
 
 Across every phase: animation means activity, steps require explicit reports, a finished response is not task completion, and unknown stays visible.

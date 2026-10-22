@@ -20,9 +20,9 @@ card with its source and **Agent-reported**. Codex cards remain **Hook-observed*
 | Cloud Dot / ChatGPT Work with Agent Progress MCP tools | Optional private tunnel and stdio bridge | Computer must remain online; tools must be available and invoked |
 | Chat without local or connected reporting tools | No integration | Cannot reach the panel |
 
-The local reporter and panel path are tested with isolated fixtures. A real Dot
-or ChatGPT Work task has **not yet been verified end to end**. Do not describe the
-experimental paths as full lifecycle support.
+The local reporter and panel path are tested with isolated fixtures. The owner
+has confirmed a real cloud Dot report appeared in the panel through the private
+tunnel. This is not full lifecycle support or verification of every environment.
 
 OpenAI documents local hooks for Codex and local-only Work. Cloud-orchestrated
 Work and dots use enterprise-managed remote MCP hooks where enabled; personal
@@ -50,6 +50,10 @@ discover local skills and access this computer, then ask:
 
 The agent runs the skill's reporter as it makes progress. Merely installing a
 skill does not guarantee invocation, and it does not attach to existing tasks.
+To avoid repeating the request, save a
+[standing reporting preference in Dot](CLOUD_REPORTING.md#make-reporting-a-standing-dot-preference).
+Reporting remains best-effort and only covers tasks where the preference and
+tools are available.
 If local access is unavailable, use the optional [private cloud reporting bridge](CLOUD_REPORTING.md). Without either path the task cannot update the desktop. Don't copy the reporter into a cloud container and
 expect it to reach your computer.
 

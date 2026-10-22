@@ -20,11 +20,11 @@ and running the tunnel client. Reports are not queued indefinitely for an offlin
 computer. A quiet report becomes unknown after three minutes; reconnecting the
 tunnel alone never refreshes a task or marks it complete.
 
-**Verification status:** version 0.3.1 passes isolated contract tests and an
+**Verification status:** the bridge passes isolated contract tests and an
 interoperability check using the official Python MCP client SDK. ChatGPT has
-successfully discovered both tools through a private tunnel. A real Dot report
-still needs live verification; tool discovery and local test reports are not
-evidence of Dot activity.
+successfully discovered both tools through a private tunnel, and the owner has
+confirmed a real Dot report appeared in the panel. This verifies explicit
+reporting for that task, not automatic coverage of every future task.
 
 ## 1. Install the bridge
 
@@ -138,6 +138,40 @@ The expected evidence is an actual successful tool call followed by a
 **Dot · Agent-reported** card with the task title. A ready-for-review report
 belongs in History. If the tools are unavailable in that Dot context, do not
 substitute a fake report or claim the tunnel observes it automatically.
+
+### Make reporting a standing Dot preference
+
+After verifying one real report, tell your Dot once:
+
+> Remember this ongoing preference: use Agent Progress for every task you work
+> on or coordinate for me, without waiting for me to ask each time. Start a
+> separate report for each distinct task, retain its report identifiers, update
+> at meaningful work transitions, and mark it ready for review only when its
+> deliverable is ready. Use waiting for input only when you need my answer.
+> Keep titles non-sensitive and never invent percentages, approval waits or
+> background activity. Do not send timer-based heartbeats. Include this reporting
+> preference in instructions for future delegated tasks where the tools are
+> available; keep the worker's true source identity and existing Codex hooks.
+> Respect any task I ask you not to track. Confirm that you saved this preference.
+
+Dot can keep ongoing preferences in its own saved notes; see
+[Tasks and memory](https://learn.chatgpt.com/docs/dots/tasks-and-memory).
+Version 0.3.2 recognizes a user-authorized standing preference in the MCP
+instructions and local skill. It remains opt-in: installing the plugin alone
+does not authorize reporting every task. A saved preference guides the agent;
+it is not an account-wide hook or a guarantee that every task will report.
+Existing delegated tasks may need the instruction when next resumed.
+
+One Dot conversation can coordinate multiple work items. Give each a distinct
+host task ID or retained reporter UUID as `session`; reusing one global Dot
+conversation ID would replace the preceding task's report. Only report known
+work and explicit results, never inferred worker liveness. When tools or the
+computer are unavailable, continue the task and explain the reporting gap once.
+
+To stop the default, tell Dot to stop automatically reporting future tasks to
+Agent Progress and update its saved preference. This does not delete History or
+disconnect the plugin. App permissions still apply independently; do not disable
+approval checks globally to make reporting automatic.
 
 ## Report contract and retry behavior
 
