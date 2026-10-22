@@ -1,13 +1,18 @@
 ---
 name: agent-progress
-description: Report this Dot or ChatGPT Work task's activity to Agent Progress when asked to track work there. Use connected Agent Progress MCP tools, or local reporting with access to the panel computer. Codex already uses lifecycle hooks.
+description: Report Dot or ChatGPT Work activity to Agent Progress when requested for a task or covered by the user's standing reporting preference. Use connected MCP tools or local access to the panel computer. Codex already uses lifecycle hooks.
 ---
 
 # Agent Progress reporting
 
-Use this skill when asked to show this task in Agent Progress. This is an
+Use this skill when asked to show this task in Agent Progress, including a
+user-authorized standing preference covering future Dot tasks. The user need not
+repeat that preference for every task. Respect a later opt-out. Installation
+alone does not establish a standing preference. This is an
 experimental, best-effort reporting workflow, not an automatic lifecycle feed.
-Do not use it to monitor other chats or send messages to them.
+Report work you perform or coordinate, based on your own actions or explicit
+results. Do not impersonate workers, infer their liveness, monitor unrelated
+chats or send messages to other chats as part of this skill.
 
 If connected **Agent Progress** tools `begin_report` and `update_report` are
 available, use them. They work through a configured private tunnel without
@@ -35,6 +40,13 @@ from the current product context, not the model name. If unavailable, ask rather
 than guess. Prefer a task ID supplied by the host. When none is available, create
 a UUID specifically for this report and retain it; never present it as a real
 chat ID. Don't inspect private databases or transcripts to find identifiers.
+
+If one Dot conversation handles several distinct tasks, use a distinct task ID
+or retained reporter UUID for each work item, not one global Dot conversation
+ID. Keep each task's `id`, `run` and `sequence` separate. Reuse its report while
+that task continues; begin a new run only for genuinely new or resumed work.
+Delegated agents report their own source identity when instructed and able;
+Codex workers retain their existing hook reports.
 
 The script returns an `id`, `run` and `sequence`. Retain those in task context.
 Send subsequent updates using that exact ID and run token with increasing integer
