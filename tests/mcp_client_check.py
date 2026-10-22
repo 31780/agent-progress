@@ -47,12 +47,16 @@ async def check(server):
                 assert not (await session.call_tool("update_report", {**update, "request_id": str(uuid.uuid4()),
                                           "sequence": 2, "status": "ready_for_review"})).isError
                 assert snapshot()["history"][0]["status"] == "ready_for_review"
+                await session.initialize()
+                assert len((await session.list_tools()).tools) == 2
+                assert (await session.call_tool("begin_report", begin)).structuredContent == report
+                assert snapshot()["current"] == []
                 assert not (await session.call_tool("begin_report", {**begin, "request_id": str(uuid.uuid4())})).isError
                 stale = await session.call_tool("update_report", {**update, "request_id": str(uuid.uuid4()), "sequence": 3})
                 assert stale.isError
                 print(json.dumps({"passed": True, "protocol": initialized.protocolVersion,
                                   "checks": ["discovery", "begin", "retry", "waiting_input", "milestone",
-                                             "snapshot", "history", "new_run", "stale_run_rejected"],
+                                             "snapshot", "history", "reinitialize", "new_run", "stale_run_rejected"],
                                   "isolated": True}))
 
 

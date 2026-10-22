@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "nino.codex-progress",
   "name": "Agent Progress",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": "Nino",
   "description": "Codex lifecycle activity and experimental Dot/ChatGPT Work reports.",
   "kinds": ["bar-widget"],

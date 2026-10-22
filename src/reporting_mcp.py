@@ -12,7 +12,7 @@ import sys
 
 import progress
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 PROTOCOLS = ("2025-11-25", "2025-06-18")
 MAX_MESSAGE = 16384
 INSTRUCTIONS = (
@@ -95,16 +95,22 @@ class Server:
             return error(rid, -32602, "Expected object params")
         if method == "initialize":
             client = params.get("clientInfo")
-            if (self.initialized or not isinstance(params.get("protocolVersion"), str)
+            if (not isinstance(params.get("protocolVersion"), str)
                     or not isinstance(params.get("capabilities"), dict) or not isinstance(client, dict)
                     or not isinstance(client.get("name"), str) or not isinstance(client.get("version"), str)):
-                return error(rid, -32602, "Invalid or repeated initialization")
+                return error(rid, -32602, "Invalid initialization")
+            # A private tunnel can reuse one stdio process for several logical
+            # client handshakes. Reinitialize transport readiness only; reports,
+            # run tokens and retry receipts belong to storage, not this session.
             self.initialized = True
+            self.ready = False
             version = params["protocolVersion"] if params["protocolVersion"] in PROTOCOLS else PROTOCOLS[0]
             result = {"protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
                       "serverInfo": {"name": "agent-progress", "version": VERSION}, "instructions": INSTRUCTIONS}
         elif method == "ping":
             result = {}
+        elif method not in ("tools/list", "tools/call"):
+            return error(rid, -32601, "Method not found")
         elif not self.ready:
             return error(rid, -32000, "Initialize the MCP session first")
         elif method == "tools/list":
