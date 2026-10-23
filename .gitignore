@@ -5,6 +5,14 @@ __pycache__/
 .venv/
 .env
 .env.*
+.secrets/
+runtime-key
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
 *.sqlite*
 *.db
 *.log
