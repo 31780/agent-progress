@@ -10,6 +10,12 @@ Include the affected revision, the impact, and the smallest safe reproduction yo
 
 The maintainer will assess reports and coordinate fixes and disclosure through the private advisory. This volunteer project cannot promise a response deadline or a bounty. Test only systems and data you are authorized to use.
 
+## Credentials and secret scanning
+
+GitHub secret scanning and push protection are enabled. Pull requests also run Gitleaks against the fetched Git history and tracked files, with fully redacted findings. The scanner version and download checksum are pinned in the workflow. These checks help detect credentials but do not replace reviewing changes, screenshots and generated files before publishing.
+
+Store tunnel runtime keys outside the checkout in a user-only file, as described in [cloud reporting setup](docs/CLOUD_REPORTING.md). Never put them in examples, screenshots, issues or pull requests. If a real credential is committed, revoke or rotate it immediately and report the incident privately. Removing it from the latest version does not remove it from Git history, forks or existing clones. Coordinate any history cleanup with the maintainer; do not weaken branch protections or publish the credential in a bug report.
+
 ## Expected behavior
 
 Observer hooks should never approve or deny an agent action, request continuation, or retain prompts, command bodies, tool output or assistant replies. Local titles and workspace paths are private data. Installation and removal must preserve unrelated hooks and desktop settings.

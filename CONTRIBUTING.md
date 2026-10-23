@@ -37,9 +37,11 @@ If you cannot run a platform-specific check, state that in the pull request so a
 
 GitHub Actions runs the unit suite on Python 3.11 and 3.14 for pull requests. A first-time contributor's workflow may wait for a maintainer to approve running it; this does not mean the contribution was rejected. Workflows use read-only repository permissions and do not need repository secrets.
 
+The `secrets` check scans Git history and tracked files with a pinned, checksum-verified Gitleaks release. Keep credentials, tunnel runtime keys and private state outside the repository; use synthetic data in tests and screenshots. Ignored files are a convenience, not a guarantee: never force-add a credential. If the check reports a possible secret, follow [the security policy](SECURITY.md); do not bypass the check with an allowlist or an inline suppression.
+
 ## Review and merging
 
-`master` is the default, protected branch. All changes, including maintainer changes, go through pull requests. Both unit-test jobs must pass against the latest `master`, and review conversations must be resolved. Force-pushes and deletion of `master` are disabled; the rules also apply to administrators. Pull requests are squash-merged, and merged branches in this repository are automatically removed.
+`master` is the default, protected branch. All changes, including maintainer changes, go through pull requests. All required checks, including secret scanning and the Linux, macOS and Windows tests, must pass against the latest `master`, and review conversations must be resolved. Force-pushes and deletion of `master` are disabled; the rules also apply to administrators. Pull requests are squash-merged, and merged branches in this repository are automatically removed.
 
 The current maintainer is [@31780](https://github.com/31780). Only maintainers can merge; contributors can use forks without repository write access. Since there is currently one maintainer, a second person's approval is not mandatory. Maintainers review outside contributions before merging, and should reconsider mandatory independent approval when more maintainers join.
 
